@@ -414,6 +414,19 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       transition: all 0.3s;
     }
+    .back-btn {
+  background-color: #555;
+  color: white;
+  border: none;
+  margin-bottom: 15px;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.back-btn:hover {
+  background-color: #444;
+  transform: translateY(-2px);
+}
 
     .chatbot-toggle:hover {
       background-color: #3d8b40;
@@ -566,7 +579,7 @@
     <div class="search-container">
       <i class="fas fa-search search-icon"></i>
       <input type="text" id="search-input" class="search-input" placeholder="Search inventory...">
-      <img src="1logo.png" alt="Logo" class="search-logo">
+      <img src="2logo.png" alt="Logo" class="search-logo">
     </div>
   </div>
 
@@ -773,6 +786,7 @@
 
   <div class="details-panel" id="details-panel">
     <h2 class="details-title"><i class="fas fa-info-circle"></i> Item Details</h2>
+    <button class="action-btn back-btn" id="back-btn"><i class="fas fa-arrow-left"></i> Back</button>
     <div class="details-content" id="details-content"></div>
   </div>
 
@@ -952,6 +966,9 @@
         alert('Error generating purchase bill');
       }
     }
+    document.getElementById('back-btn').addEventListener('click', () => {
+  detailsPanel.style.display = 'none';
+});
 
     async function downloadSalesBill(saleId) {
       try {

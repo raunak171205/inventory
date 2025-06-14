@@ -45,6 +45,12 @@
       box-shadow: 0 8px 32px rgba(0, 0,0.2);
       animation: fadeIn 1s ease-out;
       border: 1px solid rgba(255, 255, 255, 0.2);
+      /* Add a cursor to indicate interactivity */
+      cursor: pointer;
+    }
+
+    .dashboard-container:active {
+        transform: scale(0.99); /* Slight press effect on tap */
     }
 
     .dashboard-title {
@@ -130,7 +136,7 @@
   </style>
 </head>
 <body>
-  <div class="dashboard-container">
+  <div class="dashboard-container" id="dashboardContainer">
     <h2 class="dashboard-title"><i class="fas fa-chart-line"></i> Available Inventory by Category</h2>
     <div class="chart-container">
       <canvas id="inventoryChart"></canvas>
@@ -323,7 +329,8 @@
             if (item.category && categories.includes(item.category) && typeof item.availableQty === 'number') {
               const categoryIndex = categories.indexOf(item.category);
               datasets[categoryIndex].data[3] = 0;
-              inventorySnapshot.forEach(doc => {
+              // Recalculate total for the affected category based on current snapshot
+              snapshot.docs.forEach(doc => {
                 const currentItem = doc.data();
                 if (currentItem.category === item.category && typeof currentItem.availableQty === 'number') {
                   datasets[categoryIndex].data[3] += currentItem.availableQty;
@@ -351,15 +358,32 @@
     window.onload = function() {
       loadInventoryData();
 
-      const container = document.querySelector('.dashboard-container');
+      const container = document.getElementById('dashboardContainer'); // Get the container by ID
       setInterval(() => {
         container.style.boxShadow = `0 8px 32px rgba(0, 0, 0, ${0.2 + Math.random() * 0.1})`;
       }, 3000);
 
-      // Redirect to 2.html after 20 seconds
-      setTimeout(() => {
+      // --- Double-tap logic ---
+      let lastTap = 0;
+      const doubleTapThreshold = 300; // milliseconds
+
+      container.addEventListener('touchend', function(event) {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTap;
+
+        if (tapLength < doubleTapThreshold && tapLength > 0) {
+          event.preventDefault(); // Prevent default touch behavior (like zooming)
+          window.location.href = '2.html';
+        }
+        lastTap = currentTime;
+      });
+
+      // For desktop/mouse double-click support
+      container.addEventListener('dblclick', function() {
         window.location.href = '2.html';
-      }, 20000);
+      });
+
+      // Removed the automatic 20-second redirect
     };
   </script>
 </body>
