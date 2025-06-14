@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Inventory Quantity Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Orbitron', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      background: #0a0a23;
+    }
+
+    #mechanical-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      background: linear-gradient(135deg, #1a1a3a, #3a1a2a, #1a2a3a);
+      animation: metallicGlow 15s ease infinite;
+      background-size: 400% 400%;
+      opacity: 0.9;
+    }
+
+    @keyframes metallicGlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .dashboard-container {
+      max-width: 1200px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(15px);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 0 30px rgba(0, 250, 255, 0.3), 0 0 60px rgba(255, 0, 255, 0.2);
+      animation: fadeIn 1.5s ease-out;
+      border: 1px solid rgba(0, 250, 255, 0.5);
+      display: none;
+      position: relative;
+      z-index: 1;
+    }
+
+    .dashboard-title {
+      font-size: 40px;
+      color: #00faff;
+      margin-bottom: 30px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-shadow: 0 0 15px #00faff;
+      font-weight: 700;
+    }
+
+    .dashboard-title i {
+      font-size: 42px;
+      color: #00faff;
+      text-shadow: 0 0 15px #00faff;
+    }
+
+    .chart-container {
+      max-width: 100%;
+      height: 600px;
+      margin-bottom: 40px;
+      position: relative;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0, 250, 255, 0.5);
+      border: 2px solid transparent;
+      border-image: linear-gradient(45deg, #00faff, #ff00ff) 1;
+      animation: float 5s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0); }
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 25px;
+      margin-top: 30px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      padding: 25px;
+      border-radius: 16px;
+      text-align: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      animation: bounceIn 0.8s ease-out;
+      border: 1px solid rgba(0, 250, 255, 0.3);
+    }
+
+    .stat-card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(0, 250, 255, 0.5);
+    }
+
+    @keyframes bounceIn {
+      0% { opacity: 0; transform: scale(0.3); }
+      50% { opacity: 1; transform: scale(1.05); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+
+    .stat-card h3 {
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: #00faff;
+      text-shadow: 0 0 8px #00faff;
+    }
+
+    .stat-card p {
+      font-size: 30px;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(45deg, #00faff, #ff00ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .loading-message {
+      text-align: center;
+      font-size: 22px;
+      padding: 40px;
+      text-shadow: 0 0 15px #00faff;
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 250, 255, 0.2);
+      border-top: 4px solid #00faff;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .refresh-button {
+      display: block;
+      margin: 30px auto;
+      padding: 14px 28px;
+      background: linear-gradient(45deg, #00faff, #ff00ff);
+      border: none;
+      border-radius: 10px;
+      color: #000;
+      font-size: 20px;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 0 15px #00faff;
+    }
+
+    .refresh-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px #00faff;
+    }
+
+    .welcome-message {
+      font-size: 36px;
+      text-align: center;
+      margin-bottom: 30px;
+      text-shadow: 0 0 15px #00faff;
+      color: #00faff;
+      z-index: 1;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(15px);
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      color: #00faff;
+      box-shadow: 0 0 30px rgba(0, 250, 255, 0.5);
+      animation: slideIn 0.5s ease-out;
+      width: 90%;
+      max-width: 450px;
+      border: 1px solid rgba(0, 250, 255, 0.5);
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-50px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-content h2 {
+      margin-bottom: 25px;
+      font-size: 32px;
+      text-shadow: 0 0 15px #00faff;
+    }
+
+    .auth-button {
+      padding: 14px 28px;
+      background: linear-gradient(45deg, #00faff, #ff00ff);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 15px auto;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .auth-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px #00faff;
+    }
+
+    .auth-input {
+      width: 100%;
+      padding: 14px;
+      margin: 15px 0;
+      border: 1px solid #00faff;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 20px;
+    }
+
+    .auth-input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .error-message {
+      color: #ff4d4d;
+      margin-top: 15px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-container {
+        padding: 25px;
+      }
+
+      .dashboard-title {
+        font-size: 32px;
+      }
+
+      .dashboard-title i {
+        font-size: 34px;
+      }
+
+      .chart-container {
+        height: 400px;
+      }
+
+      .stat-card {
+        padding: 20px;
+      }
+
+      .stat-card h3 {
+        font-size: 20px;
+      }
+
+      .stat-card p {
+        font-size: 26px;
+      }
+
+      .refresh-button {
+        font-size: 18px;
+        padding: 12px 24px;
+      }
+
+      .welcome-message {
+        font-size: 28px;
+      }
+
+      .modal-content {
+        padding: 30px;
+      }
+
+      .modal-content h2 {
+        font-size: 28px;
+      }
+
+      .auth-button {
+        font-size: 18px;
+        padding: 12px 24px;
+      }
+
+      .auth-input {
+        font-size: 18px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="mechanical-bg"></canvas>
+  <div id="welcome" class="welcome-message">
+    <span id="typed"></span>
+  </div>
+  <div class="dashboard-container" id="dashboard">
+    <h2 class="dashboard-title"><i class="fas fa-chart-line"></i> Available Inventory by Category</h2>
+    <div class="chart-container">
+      <div class="spinner" id="spinner"></div>
+      <canvas id="inventoryChart" style="display: none;"></canvas>
+    </div>
+    <button class="refresh-button" onclick="loadInventoryData()">Refresh Data</button>
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+  <div class="modal" id="loginModal">
+    <div class="modal-content">
+      <h2>Sign In to Access Dashboard</h2>
+      <input type="email" id="email" class="auth-input" placeholder="Email">
+      <input type="password" id="password" class="auth-input" placeholder="Password">
+      <button class="auth-button" onclick="signInWithEmail()">
+        <i class="fas fa-sign-in-alt"></i> Sign In
+      </button>
+      <p id="errorMessage" class="error-message"></p>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+    apiKey: "AIzaSyAs8o4QO1YB8zaHq--4rMaYeCHAIOAfAEk",
+    authDomain: "inventory-23e2b.firebaseapp.com",
+    projectId: "inventory-23e2b",
+    storageBucket: "inventory-23e2b.firebasestorage.app",
+    messagingSenderId: "310713354936",
+    appId: "1:310713354936:web:35cdf2af47e02b0ca7024d",
+    measurementId: "G-GGD694N4HL"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    let chart = null;
+
+    // Initialize 2D Mechanical Background
+    const canvas = document.getElementById('mechanical-bg');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Gear and piston animation
+    const gears = [
+      { x: 100, y: 100, radius: 50, teeth: 20, speed: 0.02, color: '#b0bec5' },
+      { x: 200, y: 150, radius: 30, teeth: 12, speed: -0.03, color: '#78909c' },
+      { x: 300, y: 120, radius: 40, teeth: 16, speed: 0.025, color: '#546e7a' },
+      { x: window.innerWidth - 150, y: window.innerHeight - 100, radius: 60, teeth: 24, speed: -0.015, color: '#b0bec5' }
+    ];
+
+    const pistons = [
+      { x: window.innerWidth / 2, y: 50, length: 80, speed: 0.05, angle: 0, color: '#78909c' },
+      { x: window.innerWidth - 200, y: window.innerHeight / 2, length: 60, speed: 0.04, angle: Math.PI / 2, color: '#546e7a' }
+    ];
+
+    function drawGear(x, y, radius, teeth, rotation, color) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#00faff';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      for (let i = 0; i < teeth * 2; i++) {
+        const angle = (i * Math.PI) / teeth;
+        const r = i % 2 === 0 ? radius : radius * 0.8;
+        ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Center bolt
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#263238';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPiston(x, y, length, angle, color) {
+      ctx.save();
+      ctx.translate(x, y);
+      const offset = Math.sin(angle) * length * 0.4;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#00faff';
+      ctx.lineWidth = 2;
+
+      // Piston rod
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, offset + length);
+      ctx.stroke();
+
+      // Piston head
+      ctx.beginPath();
+      ctx.arc(0, offset + length, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function animateBackground() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw metallic texture (simplified noise pattern)
+      ctx.globalAlpha = 0.2;
+      for (let i = 0; i < canvas.width; i += 10) {
+        for (let j = 0; j < canvas.height; j += 10) {
+          ctx.fillStyle = `rgba(0, 250, 255, ${Math.random() * 0.1})`;
+          ctx.fillRect(i, j, 5, 5);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // Animate gears
+      gears.forEach(gear => {
+        gear.angle = (gear.angle || 0) + gear.speed;
+        drawGear(gear.x, gear.y, gear.radius, gear.teeth, gear.angle, gear.color);
+      });
+
+      // Animate pistons
+      pistons.forEach(piston => {
+        piston.angle += piston.speed;
+        drawPiston(piston.x, piston.y, piston.length, piston.angle, piston.color);
+      });
+
+      requestAnimationFrame(animateBackground);
+    }
+
+    animateBackground();
+
+    // Initialize Typed.js
+    const typed = new Typed('#typed', {
+      strings: ['Journey Through Mechanics', 'Technomens Inventory', 'Sign In to Explore'],
+      typeSpeed: 60,
+      backSpeed: 30,
+      loop: true,
+      startDelay: 500
+    });
+
+    // Firebase Authentication Functions
+    function signInWithEmail() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      auth.signInWithEmailAndPassword(email, password).catch(error => {
+        document.getElementById('errorMessage').textContent = 'Error: ' + error.message;
+      });
+    }
+
+    auth.onAuthStateChanged(user => {
+      const dashboard = document.getElementById('dashboard');
+      const welcome = document.getElementById('welcome');
+      const loginModal = document.getElementById('loginModal');
+      if (user) {
+        window.location.href = '1.html';
+      } else {
+        dashboard.style.display = 'none';
+        welcome.style.display = 'block';
+        setTimeout(() => {
+          loginModal.style.display = 'flex';
+        }, Math.random() * 5000 + 10000);
+      }
+    });
+
+    function getLast6Months() {
+      const months = [];
+      const today = new Date();
+      for (let i = -3; i <= 2; i++) {
+        const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
+        months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+      }
+      return months;
+    }
+
+    function updateStatsGrid(datasets, categories) {
+      const statsGrid = document.getElementById('statsGrid');
+      statsGrid.innerHTML = '';
+      categories.forEach((category, index) => {
+        const latestQty = datasets[index].data[3];
+        const statCard = document.createElement('div');
+        statCard.className = 'stat-card';
+        statCard.style.borderLeft = `4px solid ${datasets[index].borderColor}`;
+        statCard.innerHTML = `
+          <h3>${category}</h3>
+          <p>${latestQty.toLocaleString()} items</p>
+        `;
+        statsGrid.appendChild(statCard);
+      });
+    }
+
+    async function loadInventoryData() {
+      try {
+        const spinner = document.getElementById('spinner');
+        const chartCanvas = document.getElementById('inventoryChart');
+        spinner.style.display = 'block';
+        chartCanvas.style.display = 'none';
+
+        const labels = getLast6Months();
+        const categories = ['Mechanical', 'Electrical', 'Chemical', 'Miscellaneous'];
+        const colors = {
+          Mechanical: '#4CAF50',
+          Electrical: '#2196F3',
+          Chemical: '#FF9800',
+          Miscellaneous: '#9C27B0'
+        };
+
+        const datasets = categories.map(category => ({
+          label: category,
+          data: new Array(labels.length).fill(0),
+          borderColor: colors[category],
+          backgroundColor: colors[category] + '33',
+          borderWidth: 3,
+          pointBackgroundColor: colors[category],
+          pointBorderColor: '#00faff',
+          pointHoverRadius: 8,
+          pointHoverBorderWidth: 2,
+          tension: 0.4,
+          fill: true
+        }));
+
+        const inventorySnapshot = await db.collection('inventory').get();
+        let maxQty = 0;
+        inventorySnapshot.forEach(doc => {
+          const item = doc.data();
+          if (item.category && categories.includes(item.category) && typeof item.availableQty === 'number') {
+            const categoryIndex = categories.indexOf(item.category);
+            datasets[categoryIndex].data[3] += item.availableQty;
+            maxQty = Math.max(maxQty, datasets[categoryIndex].data[3]);
+          }
+        });
+
+        const yAxisMax = maxQty + 2500;
+
+        if (chart) chart.destroy();
+        const ctx = chartCanvas.getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+              duration: 1200,
+              easing: 'easeInOutCubic',
+              onComplete: function() {
+                this.data.datasets.forEach(dataset => {
+                  dataset.data.forEach((value, index) => {
+                    this.getDatasetMeta(dataset.index).data[index].radius = 5;
+                  });
+                });
+                this.update();
+              }
+            },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  color: '#00faff',
+                  font: { size: 18, weight: 'bold' },
+                  padding: 25,
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleFont: { size: 18, weight: 'bold' },
+                bodyFont: { size: 16 },
+                padding: 15,
+                cornerRadius: 15,
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    return `${context.dataset.label}: ${context.parsed.y.toLocaleString()} items`;
+                  },
+                  labelColor: function(context) {
+                    return {
+                      borderColor: 'transparent',
+                      backgroundColor: datasets[context.datasetIndex].borderColor,
+                      borderRadius: 6
+                    };
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                min: 0,
+                max: yAxisMax,
+                grid: {
+                  color: 'rgba(0, 250, 255, 0.1)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#00faff',
+                  font: { size: 16, weight: 'bold' },
+                  stepSize: yAxisMax / 5,
+                  callback: function(value) {
+                    return value.toLocaleString();
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'Available Quantity (Items)',
+                  color: '#00faff',
+                  font: { size: 18, weight: 'bold' }
+                }
+              },
+              x: {
+                grid: { display: false, drawBorder: false },
+                ticks: {
+                  color: '#00faff',
+                  font: { size: 16, weight: 'bold' }
+                },
+                title: {
+                  display: true,
+                  text: 'Month',
+                  color: '#00faff',
+                  font: { size: 18, weight: 'bold' }
+                }
+              }
+            },
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            elements: {
+              line: {
+                cubicInterpolationMode: 'monotone'
+              },
+              point: {
+                radius: 5,
+                hoverRadius: 10,
+                hoverBorderWidth: 3,
+                hoverBackgroundColor: '#00faff',
+                hoverBorderColor: '#000'
+              }
+            }
+          }
+        });
+
+        updateStatsGrid(datasets, categories);
+        spinner.style.display = 'none';
+        chartCanvas.style.display = 'block';
+
+        db.collection('inventory').onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            const item = change.doc.data();
+            if (item.category && categories.includes(item.category) && typeof item.availableQty === 'number') {
+              const categoryIndex = categories.indexOf(item.category);
+              datasets[categoryIndex].data[3] = 0;
+              inventorySnapshot.forEach(doc => {
+                const currentItem = doc.data();
+                if (currentItem.category === item.category && typeof currentItem.availableQty === 'number') {
+                  datasets[categoryIndex].data[3] += currentItem.availableQty;
+                }
+              });
+              let newMaxQty = Math.max(...datasets.map(ds => ds.data[3]));
+              chart.options.scales.y.max = newMaxQty + 2500;
+              chart.data.datasets = datasets;
+              chart.update('none');
+              updateStatsGrid(datasets, categories);
+            }
+          });
+        });
+
+      } catch (error) {
+        console.error('Error loading inventory data:', error);
+        document.querySelector('.chart-container').innerHTML = `
+          <p class="loading-message">
+            <i class="fas fa-exclamation-triangle"></i> Error loading inventory data. Please try again later.
+          </p>
+        `;
+        document.getElementById('spinner').style.display = 'none';
+      }
+    }
+
+    window.onload = function() {
+      // Dynamic shadow effect
+      const container = document.querySelector('.dashboard-container');
+      setInterval(() => {
+        container.style.boxShadow = `0 0 30px rgba(0, 250, 255, ${0.5 + Math.random() * 0.2}), 0 0 60px rgba(255, 0, 255, ${0.3 + Math.random() * 0.2})`;
+      }, 3000);
+    };
+  </script>
+</body>
+</html>
